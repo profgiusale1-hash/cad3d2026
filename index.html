@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CAD SDF</title>
+<style>
+:root{
+  --paper:#eceeeb;--paper2:#f6f7f5;--ink:#1a2330;--mut:#667282;--line:#cfd4d0;
+  --cob:#2f5bea;--cobsoft:#dfe7fd;--org:#e8742a;--red:#c93a3a;--clay:#f1d8c8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);
+  font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+#view{position:relative;flex:0 0 46%;min-height:200px;background:#b9c5ce}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+#tb{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:6px;pointer-events:none}
+#tb .sp{flex:1}
+#tb button{pointer-events:auto}
+.ib{height:34px;min-width:34px;padding:0 10px;border:1px solid rgba(26,35,48,.25);border-radius:8px;
+  background:rgba(246,247,245,.92);color:var(--ink);font:inherit;font-size:15px;cursor:pointer}
+.ib:disabled{opacity:.35}
+.ib:active:not(:disabled){background:var(--cobsoft)}
+.ib.on{background:var(--cob);color:#fff;border-color:var(--cob)}
+#tag{align-self:center;padding:5px 11px;border-radius:999px;background:rgba(246,247,245,.92);
+  border:1px solid rgba(26,35,48,.25);font-size:12px;font-weight:600;pointer-events:none}
+#tag.sc{background:var(--clay)}
+#err{position:absolute;left:8px;right:8px;bottom:8px;background:#fff;border:1px solid var(--red);color:var(--red);
+  padding:8px;border-radius:8px;font:12px/1.3 ui-monospace,monospace;max-height:40%;overflow:auto;display:none;white-space:pre-wrap}
+#hint{position:absolute;left:10px;bottom:8px;font-size:11px;color:rgba(26,35,48,.65);pointer-events:none;max-width:80%}
+#toast{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 12px;
+  border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center}
+#toast.on{opacity:1}
+#panel{flex:1;overflow-y:auto;padding:10px 12px 40px;-webkit-overflow-scrolling:touch}
+@media(min-width:860px){#app{flex-direction:row}#view{flex:1}#panel{flex:0 0 400px;border-left:1px solid var(--line)}}
+h3{font-size:13px;font-weight:700;margin:16px 0 6px;display:flex;align-items:center;gap:8px}
+h3:first-child{margin-top:2px}
+h3 .sp{flex:1}
+h3 button{font-size:12px}
+.empty{color:var(--mut);padding:10px 4px;font-size:13px}
+#tree{background:var(--paper2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:8px;padding:0 8px 0 4px;min-height:42px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:last-child{border-bottom:0}
+.row.sel{background:var(--cobsoft)}
+.row.dim .nm,.row.dim .ic,.row.dim .bd{opacity:.4}
+.row.off .nm{text-decoration:line-through;opacity:.5}
+.row.rbline{border-bottom:2px solid var(--org)}
+.dot{width:30px;height:34px;border:0;background:none;padding:0;cursor:pointer;position:relative}
+.dot::after{content:"";position:absolute;left:9px;top:11px;width:11px;height:11px;border-radius:50%;
+  border:2px solid var(--mut);background:var(--paper2)}
+.dot.act::after{border-color:var(--org);background:var(--org)}
+.ic{width:22px;text-align:center;font-size:16px}
+.nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd{min-width:26px;height:22px;line-height:20px;text-align:center;border:1px solid var(--line);border-radius:6px;
+  font-size:13px;color:var(--mut);background:#fff}
+.eye{width:34px;height:34px;border:0;background:none;font-size:16px;cursor:pointer;color:var(--ink)}
+.add{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.add button,.btn{height:38px;border:1px solid var(--line);border-radius:8px;background:var(--paper2);color:var(--ink);
+  font:inherit;cursor:pointer}
+.add button:active,.btn:active{background:var(--cobsoft)}
+.add .mod{border-style:dashed}
+.btn.pri{background:var(--cob);border-color:var(--cob);color:#fff}
+.btn.pri:active{background:#2548bd}
+.btn.clay{background:#c7794f;border-color:#c7794f;color:#fff}
+.btn.dg{color:var(--red)}
+.btn.sm{height:32px;padding:0 10px}
+.btn:disabled{opacity:.5}
+#editor{background:var(--paper2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.eh{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.eh input[type=text]{flex:1;min-width:0;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:inherit;
+  background:#fff;color:var(--ink)}
+.eh .btn{width:34px;padding:0;height:34px}
+.fld{display:grid;grid-template-columns:112px 1fr 62px;gap:8px;align-items:center;margin:7px 0}
+.fld label{font-size:13px;color:var(--mut)}
+.fld input[type=number],.fld select,.sel1{height:32px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);
+  font:inherit;font-size:13px;padding:0 4px;width:100%}
+.fld.wide{grid-template-columns:112px 1fr}
+input[type=range]{width:100%;accent-color:var(--cob);height:28px;margin:0}
+.grp{font-size:12px;font-weight:700;color:var(--ink);margin:14px 0 0;padding-top:8px;border-top:1px dashed var(--line)}
+.grp.soft{font-weight:400;color:var(--mut)}
+.note{font-size:12px;color:var(--mut);margin-top:8px}
+.warn{font-size:12px;color:var(--org);margin-bottom:6px}
+.panelbox{background:var(--paper2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.two{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.two .sel1{width:auto;flex:1}
+.two .btn{flex:1;min-width:90px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px}
+.seg button{flex:1;height:40px;border:0;border-right:1px solid var(--line);background:var(--paper2);color:var(--ink);font:inherit;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button.on{background:#c7794f;color:#fff}
+.chk{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:13px}
+.chk input{width:20px;height:20px;accent-color:var(--cob)}
+details{margin-top:14px;font-size:13px;color:var(--mut)}
+details summary{cursor:pointer;color:var(--ink)}
+details p{margin:6px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view">
+    <canvas id="cv"></canvas>
+    <div id="tb">
+      <button class="ib" id="bUndo" title="Annulla">↶</button>
+      <button class="ib" id="bRedo" title="Ripeti">↷</button>
+      <span id="tag">Solidi</span>
+      <div class="sp"></div>
+      <button class="ib" id="bOrb" title="Mouse: ruota invece di scolpire" style="display:none">⟳</button>
+      <button class="ib" id="bCam" title="Ripristina vista">Vista</button>
+    </div>
+    <div id="hint"></div>
+    <div id="toast"></div>
+    <div id="err"></div>
+  </div>
+
+  <div id="panel">
+    <!-- ============ MODALITÀ SOLIDI ============ -->
+    <div id="pSolid">
+      <h3>Albero delle feature - PalmieriCAD Prof. Giuseppe Salerno <span class="sp"></span>
+        <button class="btn sm" id="bEnd" style="display:none">Vai in fondo</button></h3>
+      <div id="tree"></div>
+      <div class="note">Il punto ● imposta il punto di ritorno: le feature dopo di esso sono sospese e puoi modificare quelle prima.</div>
+
+      <h3>Aggiungi</h3>
+      <div class="add" id="addp"></div>
+      <div class="add" id="addm" style="margin-top:6px"></div>
+
+      <h3>Parametri</h3>
+      <div id="editor"></div>
+
+      <h3>Sezione</h3>
+      <div class="panelbox" id="secbox"></div>
+
+      <h3>Scultura amorfa</h3>
+      <div class="panelbox" id="freezebox"></div>
+
+      <h3>File</h3>
+      <div class="panelbox" id="filebox"></div>
+    </div>
+
+    <!-- ============ MODALITÀ SCULTURA ============ -->
+    <div id="pSculpt" style="display:none">
+      <h3>Strumento</h3>
+      <div class="panelbox" id="sctools"></div>
+
+      <h3>Scultura</h3>
+      <div class="panelbox" id="scinfo"></div>
+
+      <h3>File</h3>
+      <div class="panelbox" id="filebox2"></div>
+    </div>
+
+    <details>
+      <summary>Come funziona</summary>
+      <p><b>Solidi.</b> Il modello è un campo di distanza con segno (SDF). Ogni feature modifica il campo della precedente, nell'ordine dell'albero. ↶ ↷ annullano ogni modifica; il punto ● torna a un passo qualsiasi senza perdere le feature successive.</p>
+      <p><b>Raccordi e smussi.</b> In ogni solido, il gruppo “Raccordi e smussi” ha due livelli: la <i>giunzione</i> con i solidi precedenti (unione, sottrazione, intersezione) e gli <i>spigoli</i> del solido stesso, scelti per direzione: box ∥X, ∥Y, ∥Z; cilindro bordo superiore e inferiore. Ognuno può essere raccordo (arco) o smusso (45°).</p>
+      <p><b>Vaso.</b> Solido di rivoluzione con 6 raggi lungo l'altezza (curva morbida), parete, fondo e ondulazione. È già cavo e aperto in alto.</p>
+      <p><b>Scultura.</b> “Congela” trasforma tutto l'albero in un volume a griglia. Da lì lavori solo con la penna: aggiungi, togli, liscia. La penna scolpisce sempre; con le dita ruoti e fai zoom (puoi attivare anche la scultura con il dito). L'albero dei solidi resta intatto e separato.</p>
+    </details>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============ Utilità ============ */
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b) => Math.min(b,Math.max(a,v));
+const AXN = ['+X','−X','+Y','−Y','+Z','−Z'];
+const AXV = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+const OPS = [['add','Unione','∪'],['sub','Sottrazione','−'],['int','Intersezione','∩']];
+const TYPES = ['Raccordo','Smusso'];
+const MAXF = 20;
+const FOCAL = 1.7;
+let toastT = null;
+function toast(m,ms){
+  const t=$('#toast'); t.textContent=m; t.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),ms||3200);
+}
+
+/* ============ Definizione feature ============ */
+const KINDS = {
+  box:{label:'Box',icon:'▣',prim:true,params:[
+    {k:'sx',l:'Larghezza X',min:.05,max:6,step:.05,def:2},
+    {k:'sy',l:'Altezza Y',min:.05,max:6,step:.05,def:2},
+    {k:'sz',l:'Profondità Z',min:.05,max:6,step:.05,def:2},
+    {k:'et',l:'Tipo spigoli',type:'sel',opts:TYPES,def:0,g:1},
+    {k:'ex',l:'Spigoli ∥ X',min:0,max:1.5,step:.01,def:0,g:1},
+    {k:'ey',l:'Spigoli ∥ Y',min:0,max:1.5,step:.01,def:0,g:1},
+    {k:'ez',l:'Spigoli ∥ Z',min:0,max:1.5,step:.01,def:0,g:1}]},
+  sphere:{label:'Sfera',icon:'●',prim:true,params:[
+    {k:'rad',l:'Raggio',min:.05,max:4,step:.05,def:1.2}]},
+  cylinder:{label:'Cilindro',icon:'▮',prim:true,params:[
+    {k:'rad',l:'Raggio',min:.05,max:4,step:.05,def:.8},
+    {k:'h',l:'Altezza',min:.05,max:8,step:.05,def:2},
+    {k:'et',l:'Tipo bordi',type:'sel',opts:TYPES,def:0,g:1},
+    {k:'ct',l:'Bordo superiore',min:0,max:1.5,step:.01,def:0,g:1},
+    {k:'cb',l:'Bordo inferiore',min:0,max:1.5,step:.01,def:0,g:1}]},
+  cone:{label:'Tronco cono',icon:'◭',prim:true,params:[
+    {k:'r1',l:'Raggio base',min:0,max:4,step:.05,def:1},
+    {k:'r2',l:'Raggio cima',min:0,max:4,step:.05,def:.3},
+    {k:'h',l:'Altezza',min:.05,max:8,step:.05,def:2}]},
+  torus:{label:'Toro',icon:'◎',prim:true,params:[
+    {k:'R',l:'Raggio maggiore',min:.1,max:4,step:.05,def:1.2},
+    {k:'r',l:'Raggio tubo',min:.02,max:2,step:.02,def:.35}]},
+  capsule:{label:'Capsula',icon:'⬭',prim:true,params:[
+    {k:'rad',l:'Raggio',min:.05,max:3,step:.05,def:.5},
+    {k:'h',l:'Lunghezza',min:0,max:8,step:.05,def:2}]},
+  vase:{label:'Vaso',icon:'⚱',prim:true,params:[
+    {k:'H',l:'Altezza',min:.4,max:8,step:.05,def:3.2},
+    {k:'r0',l:'Raggio 1 (base)',min:.05,max:3,step:.05,def:.6},
+    {k:'r1',l:'Raggio 2',min:.05,max:3,step:.05,def:.95},
+    {k:'r2',l:'Raggio 3',min:.05,max:3,step:.05,def:1.1},
+    {k:'r3',l:'Raggio 4',min:.05,max:3,step:.05,def:.8},
+    {k:'r4',l:'Raggio 5',min:.05,max:3,step:.05,def:.5},
+    {k:'r5',l:'Raggio 6 (bordo)',min:.05,max:3,step:.05,def:.7},
+    {k:'t',l:'Parete',min:.02,max:.8,step:.01,def:.08},
+    {k:'bt',l:'Fondo',min:.02,max:1.5,step:.01,def:.15},
+    {k:'amp',l:'Ondulazione',min:0,max:.25,step:.005,def:0},
+    {k:'fq',l:'Frequenza onde',min:1,max:40,step:.5,def:14}]},
+  shell:{label:'Svuotamento',icon:'◫',prim:false,params:[
+    {k:'t',l:'Spessore parete',min:.02,max:1.2,step:.01,def:.15}]},
+  offset:{label:'Offset',icon:'⊕',prim:false,params:[
+    {k:'o',l:'Distanza',min:-.6,max:.6,step:.01,def:.1}]},
+  cut:{label:'Taglio piano',icon:'◪',prim:false,params:[
+    {k:'ax',l:'Rimuove il lato',type:'sel',opts:AXN,def:2},
+    {k:'q',l:'Quota',min:-5,max:5,step:.05,def:0}]}
+};
+const PRIMS = ['box','sphere','cylinder','cone','torus','capsule','vase'];
+const MODS = ['shell','offset','cut'];
+
+/* ============ Stato e cronologia (modalità solidi) ============ */
+let mode = 'solid';
+let S = {feats:[],rb:-1,sel:-1};
+let uid = 0; const cnts = {};
+const sec = {on:false,ax:4,q:0};
+let hist = [], hi = -1;
+
+const snap = () => JSON.stringify({feats:S.feats,rb:S.rb});
+function commit(){
+  const s = snap();
+  if(hist[hi] === s) return;
+  hist = hist.slice(0,hi+1); hist.push(s); hi = hist.length-1;
+  if(hist.length > 200){hist.shift(); hi--;}
+  updBtns();
+}
+function restore(s){
+  const o = JSON.parse(s);
+  S.feats = o.feats; S.rb = o.rb;
+  if(S.sel >= S.feats.length) S.sel = S.feats.length-1;
+  afterStructure();
+}
+function undo(){
+  if(mode==='sculpt') return sUndo();
+  if(hi>0){hi--; restore(hist[hi]); updBtns();}
+}
+function redo(){
+  if(mode==='sculpt') return sRedo();
+  if(hi<hist.length-1){hi++; restore(hist[hi]); updBtns();}
+}
+function updBtns(){
+  if(mode==='sculpt'){
+    $('#bUndo').disabled = SC.undo.length===0;
+    $('#bRedo').disabled = SC.redo.length===0;
+  } else {
+    $('#bUndo').disabled = hi<=0;
+    $('#bRedo').disabled = hi>=hist.length-1;
+  }
+}
+
+function newFeature(kind){
+  const kd = KINDS[kind];
+  cnts[kind] = (cnts[kind]||0)+1;
+  const f = {id:++uid,kind,name:kd.label+' '+cnts[kind],op:'add',k:0,jt:0,on:true,pos:[0,0,0],rot:[0,0,0],p:{}};
+  kd.params.forEach(q => f.p[q.k] = q.def);
+  return f;
+}
+function addFeature(kind){
+  if(S.feats.length >= MAXF){ toast('Massimo '+MAXF+' feature.'); return; }
+  const f = newFeature(kind);
+  const i = S.rb+1;
+  S.feats.splice(i,0,f);
+  S.rb = i; S.sel = i;
+  commit(); afterStructure();
+}
+function delFeature(i){
+  S.feats.splice(i,1);
+  if(i <= S.rb) S.rb--;
+  S.sel = Math.min(i,S.feats.length-1);
+  commit(); afterStructure();
+}
+function moveFeature(i,d){
+  const j = i+d;
+  if(j<0 || j>=S.feats.length) return;
+  [S.feats[i],S.feats[j]] = [S.feats[j],S.feats[i]];
+  S.sel = j;
+  commit(); afterStructure();
+}
+function dupFeature(i){
+  if(S.feats.length >= MAXF){ toast('Massimo '+MAXF+' feature.'); return; }
+  const f = JSON.parse(JSON.stringify(S.feats[i]));
+  f.id = ++uid; f.name += ' copia';
+  S.feats.splice(i+1,0,f);
+  if(i <= S.rb) S.rb++;
+  S.sel = i+1;
+  commit(); afterStructure();
+}
+function setRb(i){ S.rb = i; commit(); afterStructure(); }
+function afterStructure(){ ensureProgram(); updateUniforms(); renderUI(); redraw(false); }
+
+/* ============ Impacchettamento parametri ============ */
+function rotInv(rot){
+  const [a,b,c] = rot.map(x => x*Math.PI/180);
+  const cx=Math.cos(a),sx=Math.sin(a),cy=Math.cos(b),sy=Math.sin(b),cz=Math.cos(c),sz=Math.sin(c);
+  const Rx=[[1,0,0],[0,cx,-sx],[0,sx,cx]], Ry=[[cy,0,sy],[0,1,0],[-sy,0,cy]], Rz=[[cz,-sz,0],[sz,cz,0],[0,0,1]];
+  const mul=(A,B)=>A.map(r=>[0,1,2].map(j=>r[0]*B[0][j]+r[1]*B[1][j]+r[2]*B[2][j]));
+  const R = mul(Rz,mul(Ry,Rx));
+  return [0,1,2].map(i=>[0,1,2].map(j=>R[j][i])); // trasposta = inversa
+}
+function pack(f){
+  const p = f.p; let A=[0,0,0,0],B=[0,0,0,0],C=[0,0,0,0],K=f.k||0,O=0;
+  switch(f.kind){
+    case 'box':{const hx=p.sx/2,hy=p.sy/2,hz=p.sz/2;
+      A=[hx,hy,hz,0];
+      B=[Math.min(p.ex,hy,hz),Math.min(p.ey,hx,hz),Math.min(p.ez,hx,hy),p.et?1:0];break;}
+    case 'sphere':A=[p.rad,0,0,0];break;
+    case 'cylinder':{const hh=p.h/2,m=Math.min(p.rad,hh);
+      A=[p.rad,hh,Math.min(p.ct,m),Math.min(p.cb,m)];B=[0,0,0,p.et?1:0];break;}
+    case 'cone':A=[p.r1,p.r2,p.h/2,0];break;
+    case 'torus':A=[p.R,p.r,0,0];break;
+    case 'capsule':A=[p.rad,p.h/2,0,0];break;
+    case 'vase':A=[p.H,p.t,p.bt,p.amp];B=[p.r0,p.r1,p.r2,p.r3];C=[p.r4,p.r5,p.fq,0];break;
+    case 'shell':K=p.t;break;
+    case 'offset':K=p.o;break;
+    case 'cut':{const n=AXV[p.ax];A=[n[0],n[1],n[2],p.q];K=0;break;}
+  }
+  if(KINDS[f.kind].prim) O = f.op==='add'?0:f.op==='sub'?1:2;
+  return {P:f.pos.slice(),m:rotInv(f.rot),A,B,C,K,O,J:f.jt?1:0};
+}
+const flat = m => [m[0][0],m[1][0],m[2][0],m[0][1],m[1][1],m[2][1],m[0][2],m[1][2],m[2][2]];
+
+/* ============ GLSL (modalità solidi) ============ */
+const FS_HEAD = `precision highp float;
+uniform vec2 uRes;uniform vec3 uRo,uFw,uRt,uUp;uniform float uFocal;
+uniform vec4 uSec;uniform float uSecOn;
+float smin(float a,float b,float k){float h=max(k-abs(a-b),0.0)/k;return min(a,b)-h*h*k*0.25;}
+float smax(float a,float b,float k){return -smin(-a,-b,k);}
+float cmin(float a,float b,float k){return min(min(a,b),(a-k+b)*0.70710678);}
+float cmax(float a,float b,float k){return max(max(a,b),(a+k+b)*0.70710678);}
+float dot2(vec2 v){return dot(v,v);}
+float sdBox(vec3 p,vec3 b){vec3 q=abs(p)-b;return length(max(q,0.0))+min(max(q.x,max(q.y,q.z)),0.0);}
+float sd2(vec2 p,vec2 h,float e,float ty){
+  vec2 a=abs(p);
+  if(ty<0.5){vec2 q=a-(h-e);return length(max(q,0.0))+min(max(q.x,q.y),0.0)-e;}
+  vec2 d=a-h;float c=(d.x+d.y+e)*0.70710678;return max(max(d.x,d.y),c);}
+float sdBoxE(vec3 p,vec3 h,vec4 B){
+  if(B.x+B.y+B.z<0.00001)return sdBox(p,h);
+  return max(sd2(p.yz,h.yz,B.x,B.w),max(sd2(p.xz,h.xz,B.y,B.w),sd2(p.xy,h.xy,B.z,B.w)));}
+float sdCylE(vec3 p,vec4 A,float ty){
+  float rho=length(p.xz);float e=(p.y>=0.0)?A.z:A.w;
+  vec2 d=vec2(rho-A.x,abs(p.y)-A.y);
+  if(ty<0.5){vec2 q=d+e;return length(max(q,0.0))+min(max(q.x,q.y),0.0)-e;}
+  float c=(d.x+d.y+e)*0.70710678;return max(max(d.x,d.y),c);}
+float sdCone(vec3 p,float r1,float r2,float h){
+  vec2 q=vec2(length(p.xz),p.y);vec2 k1=vec2(r2,h);vec2 k2=vec2(r2-r1,2.0*h);
+  vec2 ca=vec2(q.x-min(q.x,(q.y<0.0)?r1:r2),abs(q.y)-h);
+  vec2 cb=q-k1+k2*clamp(dot(k1-q,k2)/dot2(k2),0.0,1.0);
+  float s=(cb.x<0.0&&ca.y<0.0)?-1.0:1.0;
+  return s*sqrt(min(dot2(ca),dot2(cb)));}
+float sdTorus(vec3 p,vec2 t){vec2 q=vec2(length(p.xz)-t.x,p.y);return length(q)-t.y;}
+float sdCapsule(vec3 p,vec2 a){p.y-=clamp(p.y,-a.y,a.y);return length(p)-a.x;}
+float rvv(float i,vec4 B,vec4 C){return i<0.5?B.x:(i<1.5?B.y:(i<2.5?B.z:(i<3.5?B.w:(i<4.5?C.x:C.y))));}
+float sdVase(vec3 q,vec4 A,vec4 B,vec4 C){
+  float H=A.x,t=A.y,bt=A.z,amp=A.w,fq=C.z;
+  float y=q.y;float rho=length(q.xz);
+  float u=clamp((y+H*0.5)/H,0.0,1.0)*5.0;
+  float i=min(floor(u),5.0);float f=u-i;
+  float p0=rvv(max(i-1.0,0.0),B,C),p1=rvv(i,B,C),p2=rvv(min(i+1.0,5.0),B,C),p3=rvv(min(i+2.0,5.0),B,C);
+  float R=0.5*((2.0*p1)+(-p0+p2)*f+(2.0*p0-5.0*p1+4.0*p2-p3)*f*f+(-p0+3.0*p1-3.0*p2+p3)*f*f*f);
+  float dR=0.5*((-p0+p2)+2.0*(2.0*p0-5.0*p1+4.0*p2-p3)*f+3.0*(-p0+3.0*p1-3.0*p2+p3)*f*f)*5.0/H;
+  R+=amp*sin(fq*y);dR+=amp*fq*cos(fq*y);
+  float k=inversesqrt(1.0+dR*dR);
+  float dOut=max((rho-R)*k,abs(y)-H*0.5);
+  float dIn=max((rho-R)*k+t,(-H*0.5+bt)-y);
+  return max(dOut,-dIn);}
+`;
+const SHADE = `
+  vec3 l1=normalize(vec3(0.55,0.85,0.45));vec3 l2=normalize(vec3(-0.7,0.15,-0.5));
+  float dif=clamp(dot(n,l1),0.0,1.0);float dif2=clamp(dot(n,l2),0.0,1.0);
+  float hemi=0.5+0.5*n.y;`;
+const FS_MAIN = `
+vec3 calcN(vec3 p){vec2 e=vec2(1.0,-1.0)*0.0012;
+  return normalize(e.xyy*map(p+e.xyy)+e.yyx*map(p+e.yyx)+e.yxy*map(p+e.yxy)+e.xxx*map(p+e.xxx));}
+void main(){
+  vec2 uv=(2.0*gl_FragCoord.xy-uRes)/uRes.y;
+  vec3 rd=normalize(uFw*uFocal+uRt*uv.x+uUp*uv.y);
+  vec3 ro=uRo;
+  float t=max(length(ro)-14.0,0.0);float hit=0.0;
+  for(int i=0;i<160;i++){
+    vec3 p=ro+rd*t;float d=map(p);
+    if(d<0.0007*t+0.0003){hit=1.0;break;}
+    t+=d*0.85;if(t>80.0)break;
+  }
+  vec3 bg=mix(vec3(0.40,0.47,0.54),vec3(0.80,0.84,0.88),gl_FragCoord.y/uRes.y);
+  vec3 col=bg;
+  if(hit>0.5){
+    vec3 p=ro+rd*t;vec3 n=calcN(p);
+    vec3 base=vec3(0.36,0.42,0.52);
+    if(uSecOn>0.5&&abs(dot(p,uSec.xyz)-uSec.w)<0.004)base=vec3(0.85,0.40,0.12);
+    ${SHADE}
+    float ao=0.0;float sca=1.0;
+    for(int i=0;i<5;i++){float h=0.02+0.08*float(i);ao+=(h-map(p+n*h))*sca;sca*=0.75;}
+    ao=clamp(1.0-1.8*ao,0.0,1.0);
+    vec3 hv=normalize(l1-rd);float spec=pow(clamp(dot(n,hv),0.0,1.0),40.0);
+    float fre=pow(1.0-clamp(dot(n,-rd),0.0,1.0),3.0);
+    col=base*(0.30*hemi*ao+0.85*dif*(0.4+0.6*ao)+0.25*dif2*ao)+0.30*spec*ao+0.10*fre*bg;
+  }
+  col=pow(clamp(col,0.0,1.0),vec3(0.4545));
+  gl_FragColor=vec4(col,1.0);
+}`;
+function primCall(kind,i){
+  return {
+    box:`sdBoxE(q,A${i}.xyz,B${i})`,
+    sphere:`length(q)-A${i}.x`,
+    cylinder:`sdCylE(q,A${i},B${i}.w)`,
+    cone:`sdCone(q,A${i}.x,A${i}.y,A${i}.z)`,
+    torus:`sdTorus(q,A${i}.xy)`,
+    capsule:`sdCapsule(q,A${i}.xy)`,
+    vase:`sdVase(q,A${i},B${i},C${i})`
+  }[kind];
+}
+function genMap(feats){
+  let decl='', b='float map(vec3 p){float d=1e5;\n';
+  feats.forEach((f,i)=>{
+    decl += `uniform vec3 P${i};uniform mat3 M${i};uniform vec4 A${i};uniform vec4 B${i};uniform vec4 C${i};uniform vec4 U${i};\n`;
+    b += `if(U${i}.y>0.5){\n`;
+    if(KINDS[f.kind].prim){
+      b += `vec3 q=M${i}*(p-P${i});float f=${primCall(f.kind,i)};float kk=max(U${i}.x,1e-4);bool ch=U${i}.w>0.5;\n`+
+           `if(U${i}.z<0.5)d=ch?cmin(d,f,kk):smin(d,f,kk);else if(U${i}.z<1.5)d=ch?cmax(d,-f,kk):smax(d,-f,kk);else d=ch?cmax(d,f,kk):smax(d,f,kk);\n`;
+    } else if(f.kind==='shell') b += `d=abs(d+U${i}.x*0.5)-U${i}.x*0.5;\n`;
+    else if(f.kind==='offset') b += `d-=U${i}.x;\n`;
+    else b += `d=max(d,dot(p,A${i}.xyz)-A${i}.w);\n`;
+    b += '}\n';
+  });
+  b += 'if(uSecOn>0.5)d=max(d,dot(p,uSec.xyz)-uSec.w);\nreturn d;}\n';
+  return decl+b;
+}
+
+/* ============ GLSL (modalità scultura, WebGL2) ============ */
+const SC_VS = `#version 300 es
+in vec2 a;void main(){gl_Position=vec4(a,0.0,1.0);}`;
+const SC_FS = `#version 300 es
+precision highp float;precision highp sampler3D;
+uniform sampler3D uVol;uniform vec3 uMn;uniform float uH,uN;
+uniform vec2 uRes;uniform vec3 uRo,uFw,uRt,uUp;uniform float uFocal;
+uniform vec4 uBrush;uniform float uBrushOn;uniform vec3 uBrushCol;
+out vec4 oc;
+float vol(vec3 p){return texture(uVol,((p-uMn)/uH+0.5)/uN).r;}
+vec3 grad(vec3 p){float e=uH*0.8;
+  return normalize(vec3(vol(p+vec3(e,0,0))-vol(p-vec3(e,0,0)),vol(p+vec3(0,e,0))-vol(p-vec3(0,e,0)),vol(p+vec3(0,0,e))-vol(p-vec3(0,0,e))));}
+void main(){
+  vec2 uv=(2.0*gl_FragCoord.xy-uRes)/uRes.y;
+  vec3 rd=normalize(uFw*uFocal+uRt*uv.x+uUp*uv.y);vec3 ro=uRo;
+  vec3 lo=uMn,hi=uMn+uH*(uN-1.0);
+  vec3 inv=1.0/rd;vec3 ta=(lo-ro)*inv,tb=(hi-ro)*inv;
+  vec3 tmn=min(ta,tb),tmx=max(ta,tb);
+  float t0=max(max(tmn.x,tmn.y),max(tmn.z,0.0));float t1=min(min(tmx.x,tmx.y),tmx.z);
+  vec3 bg=mix(vec3(0.40,0.47,0.54),vec3(0.80,0.84,0.88),gl_FragCoord.y/uRes.y);
+  vec3 col=bg;float hit=0.0;float t=t0+1e-4;
+  if(t1>t0){
+    for(int i=0;i<300;i++){
+      vec3 p=ro+rd*t;float d=vol(p);
+      if(d<uH*0.05){hit=1.0;break;}
+      t+=clamp(d*0.8,uH*0.15,uH*4.0);
+      if(t>t1)break;
+    }
+  }
+  if(hit>0.5){
+    vec3 p=ro+rd*t;vec3 n=grad(p);
+    vec3 base=vec3(0.62,0.36,0.24);
+    ${SHADE}
+    float ao=0.0;float sca=1.0;
+    for(int i=0;i<5;i++){float h=uH*(0.6+1.6*float(i));ao+=(h-vol(p+n*h))*sca;sca*=0.75;}
+    ao=clamp(1.0-1.4*ao/(uH*8.0)*3.0,0.0,1.0);
+    vec3 hv=normalize(l1-rd);float spec=pow(clamp(dot(n,hv),0.0,1.0),24.0);
+    float fre=pow(1.0-clamp(dot(n,-rd),0.0,1.0),3.0);
+    col=base*(0.34*hemi*ao+0.85*dif*(0.4+0.6*ao)+0.25*dif2*ao)+0.12*spec*ao+0.08*fre*bg;
+    if(uBrushOn>0.5){
+      float db=length(p-uBrush.xyz);
+      float ring=1.0-smoothstep(0.0,uH*0.9,abs(db-uBrush.w));
+      float fill=(1.0-smoothstep(uBrush.w*0.96,uBrush.w,db))*0.22;
+      col=mix(col,uBrushCol,clamp(ring*0.9+fill,0.0,1.0));
+    }
+  }
+  col=pow(clamp(col,0.0,1.0),vec3(0.4545));
+  oc=vec4(col,1.0);
+}`;
+
+/* ============ WebGL ============ */
+const cv = $('#cv');
+const gl = cv.getContext('webgl2',{antialias:false}) || cv.getContext('webgl',{antialias:false});
+const GL2 = !!gl && typeof WebGL2RenderingContext!=='undefined' && gl instanceof WebGL2RenderingContext;
+let prog=null, progKey=null, locs=[], G={};
+let sprog=null, SG={};
+const cam = {yaw:.7,pitch:.5,dist:7.5,t:[0,0,0]};
+function showErr(m){ const e=$('#err'); e.style.display=m?'block':'none'; e.textContent=m||''; }
+
+function mkShader(type,src){
+  const s = gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function linkProg(vsSrc,fsSrc){
+  const vs = mkShader(gl.VERTEX_SHADER,vsSrc), fs = mkShader(gl.FRAGMENT_SHADER,fsSrc);
+  const p = gl.createProgram(); gl.attachShader(p,vs); gl.attachShader(p,fs);
+  gl.bindAttribLocation(p,0,'a'); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+function ensureProgram(){
+  if(!gl){ showErr('WebGL non disponibile su questo dispositivo.'); return; }
+  const key = S.feats.map(f=>f.kind).join(',');
+  if(prog && key===progKey) return;
+  try{
+    const p = linkProg('attribute vec2 a;void main(){gl_Position=vec4(a,0.0,1.0);}',FS_HEAD+genMap(S.feats)+FS_MAIN);
+    if(prog) gl.deleteProgram(prog);
+    prog = p; progKey = key; showErr('');
+    gl.useProgram(prog);
+    G = {};
+    ['uRes','uRo','uFw','uRt','uUp','uFocal','uSec','uSecOn'].forEach(n=>G[n]=gl.getUniformLocation(prog,n));
+    locs = S.feats.map((f,i)=>({
+      P:gl.getUniformLocation(prog,'P'+i),M:gl.getUniformLocation(prog,'M'+i),
+      A:gl.getUniformLocation(prog,'A'+i),B:gl.getUniformLocation(prog,'B'+i),
+      C:gl.getUniformLocation(prog,'C'+i),U:gl.getUniformLocation(prog,'U'+i)}));
+  }catch(e){ prog=null; progKey=null; showErr('Errore shader:\n'+e.message); }
+}
+function ensureSculptProg(){
+  if(sprog) return true;
+  if(!GL2) return false;
+  try{
+    sprog = linkProg(SC_VS,SC_FS);
+    SG = {};
+    ['uVol','uMn','uH','uN','uRes','uRo','uFw','uRt','uUp','uFocal','uBrush','uBrushOn','uBrushCol']
+      .forEach(n=>SG[n]=gl.getUniformLocation(sprog,n));
+    return true;
+  }catch(e){ sprog=null; showErr('Errore shader scultura:\n'+e.message); return false; }
+}
+function updateUniforms(){
+  if(!gl||!prog) return;
+  gl.useProgram(prog);
+  S.feats.forEach((f,i)=>{
+    const L = locs[i]; if(!L) return;
+    const pk = pack(f), act = f.on && i<=S.rb;
+    if(L.P) gl.uniform3fv(L.P,pk.P);
+    if(L.M) gl.uniformMatrix3fv(L.M,false,flat(pk.m));
+    if(L.A) gl.uniform4fv(L.A,pk.A);
+    if(L.B) gl.uniform4fv(L.B,pk.B);
+    if(L.C) gl.uniform4fv(L.C,pk.C);
+    if(L.U) gl.uniform4f(L.U,pk.K,act?1:0,pk.O,pk.J);
+  });
+  const n = AXV[sec.ax];
+  gl.uniform4f(G.uSec,n[0],n[1],n[2],sec.q);
+  gl.uniform1f(G.uSecOn,sec.on?1:0);
+}
+if(gl){
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+}
+
+/* ---- camera ---- */
+function camBasis(){
+  const cp=Math.cos(cam.pitch);
+  const off=[cam.dist*cp*Math.sin(cam.yaw),cam.dist*Math.sin(cam.pitch),cam.dist*cp*Math.cos(cam.yaw)];
+  const ro=[cam.t[0]+off[0],cam.t[1]+off[1],cam.t[2]+off[2]];
+  const fw=off.map(v=>-v/cam.dist);
+  let rt=[-fw[2],0,fw[0]]; const rl=Math.hypot(...rt); rt=rt.map(v=>v/rl);
+  const up=[rt[1]*fw[2]-rt[2]*fw[1], rt[2]*fw[0]-rt[0]*fw[2], rt[0]*fw[1]-rt[1]*fw[0]];
+  return {ro,fw,rt,up};
+}
+
+let raf=0, idleT=null, scale=1;
+function redraw(fast){
+  scale = fast?0.5:1;
+  if(!raf) raf = requestAnimationFrame(frame);
+  clearTimeout(idleT);
+  if(fast) idleT = setTimeout(()=>redraw(false),200);
+}
+function frame(){
+  raf = 0;
+  if(!gl) return;
+  const dpr = Math.min(window.devicePixelRatio||1,1.5);
+  const w = Math.max(2,Math.round(cv.clientWidth*dpr*scale)), h = Math.max(2,Math.round(cv.clientHeight*dpr*scale));
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  gl.viewport(0,0,w,h);
+  const B = camBasis();
+  if(mode==='sculpt'){
+    if(!SC.has||!ensureSculptProg()) return;
+    gl.useProgram(sprog);
+    flushUpload();
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_3D,SC.tex);
+    gl.uniform1i(SG.uVol,0); gl.uniform3fv(SG.uMn,SC.mn); gl.uniform1f(SG.uH,SC.h); gl.uniform1f(SG.uN,SC.N);
+    gl.uniform2f(SG.uRes,w,h);
+    gl.uniform3fv(SG.uRo,B.ro); gl.uniform3fv(SG.uFw,B.fw); gl.uniform3fv(SG.uRt,B.rt); gl.uniform3fv(SG.uUp,B.up);
+    gl.uniform1f(SG.uFocal,FOCAL);
+    const hv=SC.hover;
+    gl.uniform4f(SG.uBrush,hv?hv.p[0]:0,hv?hv.p[1]:0,hv?hv.p[2]:0,hv?hv.r:0);
+    gl.uniform1f(SG.uBrushOn,hv?1:0);
+    gl.uniform3fv(SG.uBrushCol,SC.tool==='add'?[0.15,0.75,0.35]:SC.tool==='sub'?[0.9,0.2,0.2]:[0.55,0.7,1.0]);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  } else {
+    if(!prog) return;
+    gl.useProgram(prog);
+    gl.uniform2f(G.uRes,w,h);
+    gl.uniform3fv(G.uRo,B.ro); gl.uniform3fv(G.uFw,B.fw); gl.uniform3fv(G.uRt,B.rt); gl.uniform3fv(G.uUp,B.up);
+    gl.uniform1f(G.uFocal,FOCAL);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  }
+}
+
+/* ============ Modalità scultura: dati ============ */
+const SC = {has:false,N:0,mn:[0,0,0],h:0,c:[0,0,0],data:null,tex:null,flag:null,
+  undo:[],redo:[],tool:'add',rad:.35,soft:.4,mirror:false,pressure:true,
+  finger:!('ontouchstart' in window),orbitMouse:false,stroke:null,hover:null,dirty:null,full:false};
+
+function setSculpt(N,mn,h,data){
+  SC.N=N; SC.mn=mn.slice(); SC.h=h; SC.data=data; SC.has=true;
+  SC.c=mn.map(v=>v+h*(N-1)/2);
+  SC.flag=new Uint8Array(N*N*N); SC.undo=[]; SC.redo=[]; SC.stroke=null; SC.hover=null; SC.dirty=null; SC.full=false;
+  if(GL2){
+    if(SC.tex) gl.deleteTexture(SC.tex);
+    SC.tex=gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_3D,SC.tex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);
+    gl.texImage3D(gl.TEXTURE_3D,0,gl.R16F,N,N,N,0,gl.RED,gl.FLOAT,SC.data);
+    gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    ['TEXTURE_WRAP_S','TEXTURE_WRAP_T','TEXTURE_WRAP_R'].forEach(k=>gl.texParameteri(gl.TEXTURE_3D,gl[k],gl.CLAMP_TO_EDGE));
+  }
+}
+function uploadBox(x0,y0,z0,x1,y1,z1){
+  const N=SC.N;
+  gl.bindTexture(gl.TEXTURE_3D,SC.tex);
+  gl.pixelStorei(gl.UNPACK_ROW_LENGTH,N); gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT,N);
+  gl.pixelStorei(gl.UNPACK_SKIP_PIXELS,x0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS,y0); gl.pixelStorei(gl.UNPACK_SKIP_IMAGES,z0);
+  gl.texSubImage3D(gl.TEXTURE_3D,0,x0,y0,z0,x1-x0+1,y1-y0+1,z1-z0+1,gl.RED,gl.FLOAT,SC.data);
+  gl.pixelStorei(gl.UNPACK_ROW_LENGTH,0); gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT,0);
+  gl.pixelStorei(gl.UNPACK_SKIP_PIXELS,0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS,0); gl.pixelStorei(gl.UNPACK_SKIP_IMAGES,0);
+}
+function flushUpload(){
+  if(!SC.tex) return;
+  if(SC.full){ uploadBox(0,0,0,SC.N-1,SC.N-1,SC.N-1); SC.full=false; SC.dirty=null; }
+  else if(SC.dirty){ const d=SC.dirty; uploadBox(d[0],d[1],d[2],d[3],d[4],d[5]); SC.dirty=null; }
+}
+function markDirty(lo,hi){
+  const d=SC.dirty;
+  if(!d) SC.dirty=[lo[0],lo[1],lo[2],hi[0],hi[1],hi[2]];
+  else for(let a=0;a<3;a++){ d[a]=Math.min(d[a],lo[a]); d[a+3]=Math.max(d[a+3],hi[a]); }
+}
+
+/* ---- campionamento e raggio sul volume (CPU) ---- */
+function volAt(x,y,z){
+  const N=SC.N,d=SC.data,h=SC.h,mn=SC.mn;
+  const gx=clamp((x-mn[0])/h,0,N-1.001),gy=clamp((y-mn[1])/h,0,N-1.001),gz=clamp((z-mn[2])/h,0,N-1.001);
+  const i=gx|0,j=gy|0,k=gz|0,fx=gx-i,fy=gy-j,fz=gz-k;
+  const b=i+N*(j+N*k),N2=N*N;
+  const c00=d[b]*(1-fx)+d[b+1]*fx, c10=d[b+N]*(1-fx)+d[b+N+1]*fx;
+  const c01=d[b+N2]*(1-fx)+d[b+N2+1]*fx, c11=d[b+N+N2]*(1-fx)+d[b+N+N2+1]*fx;
+  return (c00*(1-fy)+c10*fy)*(1-fz)+(c01*(1-fy)+c11*fy)*fz;
+}
+function volRay(ro,rd){
+  const lo=SC.mn, hi=SC.mn.map(v=>v+SC.h*(SC.N-1));
+  let t0=0,t1=1e9;
+  for(let a=0;a<3;a++){
+    if(Math.abs(rd[a])<1e-9){ if(ro[a]<lo[a]||ro[a]>hi[a]) return -1; continue; }
+    let ta=(lo[a]-ro[a])/rd[a], tb=(hi[a]-ro[a])/rd[a];
+    if(ta>tb){const q=ta;ta=tb;tb=q;}
+    t0=Math.max(t0,ta); t1=Math.min(t1,tb);
+    if(t0>t1) return -1;
+  }
+  let t=t0+1e-4;
+  for(let i=0;i<300&&t<t1;i++){
+    const d=volAt(ro[0]+rd[0]*t,ro[1]+rd[1]*t,ro[2]+rd[2]*t);
+    if(d<SC.h*0.05) return t;
+    t+=clamp(d*0.8,SC.h*0.15,SC.h*4);
+  }
+  return -1;
+}
+function pickAt(cx,cy,fallback){
+  const r=cv.getBoundingClientRect(), aspect=r.width/r.height;
+  const ux=(2*(cx-r.left)/r.width-1)*aspect, uy=1-2*(cy-r.top)/r.height;
+  const B=camBasis();
+  let rd=[0,1,2].map(a=>B.fw[a]*FOCAL+B.rt[a]*ux+B.up[a]*uy);
+  const l=Math.hypot(...rd); rd=rd.map(v=>v/l);
+  const t=volRay(B.ro,rd);
+  if(t>=0) return [0,1,2].map(a=>B.ro[a]+rd[a]*t);
+  if(fallback){
+    const den=rd[0]*B.fw[0]+rd[1]*B.fw[1]+rd[2]*B.fw[2];
+    const num=(cam.t[0]-B.ro[0])*B.fw[0]+(cam.t[1]-B.ro[1])*B.fw[1]+(cam.t[2]-B.ro[2])*B.fw[2];
+    const tt=num/den;
+    return [0,1,2].map(a=>B.ro[a]+rd[a]*tt);
+  }
+  return null;
+}
+
+/* ---- pennellate ---- */
+const jsmin=(a,b,k)=>{const h=Math.max(k-Math.abs(a-b),0)/k;return Math.min(a,b)-h*h*k*.25;};
+const jsmax=(a,b,k)=>-jsmin(-a,-b,k);
+function applyDab(c,r,tool){
+  const N=SC.N,h=SC.h,mn=SC.mn,d=SC.data,st=SC.stroke;
+  const k=Math.max(SC.soft*r,h*0.6);
+  const rr = tool==='smooth' ? r+2*h : r+k+5*h;
+  const lo=[0,0,0],hi=[0,0,0];
+  for(let a=0;a<3;a++){
+    lo[a]=Math.max(0,Math.floor((c[a]-rr-mn[a])/h));
+    hi[a]=Math.min(N-1,Math.ceil((c[a]+rr-mn[a])/h));
+    if(hi[a]<lo[a]) return;
+  }
+  const touch=idx=>{ if(!SC.flag[idx]){SC.flag[idx]=1;st.idx.push(idx);st.old.push(d[idx]);} };
+  if(tool==='smooth'){
+    const w0=0.25+0.6*SC.soft, N2=N*N, ids=[], vals=[];
+    for(let kk=Math.max(lo[2],1);kk<=Math.min(hi[2],N-2);kk++)
+    for(let jj=Math.max(lo[1],1);jj<=Math.min(hi[1],N-2);jj++)
+    for(let ii=Math.max(lo[0],1);ii<=Math.min(hi[0],N-2);ii++){
+      const dx=mn[0]+ii*h-c[0],dy=mn[1]+jj*h-c[1],dz=mn[2]+kk*h-c[2];
+      const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
+      if(dist>r) continue;
+      const idx=ii+N*(jj+N*kk);
+      const avg=(d[idx-1]+d[idx+1]+d[idx-N]+d[idx+N]+d[idx-N2]+d[idx+N2])/6;
+      ids.push(idx); vals.push(d[idx]+(avg-d[idx])*w0*(1-dist/r));
+    }
+    for(let q=0;q<ids.length;q++){ touch(ids[q]); d[ids[q]]=vals[q]; }
+  } else {
+    const add = tool==='add', rr2=rr*rr;
+    for(let kk=lo[2];kk<=hi[2];kk++)
+    for(let jj=lo[1];jj<=hi[1];jj++)
+    for(let ii=lo[0];ii<=hi[0];ii++){
+      const dx=mn[0]+ii*h-c[0],dy=mn[1]+jj*h-c[1],dz=mn[2]+kk*h-c[2];
+      const q2=dx*dx+dy*dy+dz*dz;
+      if(q2>rr2) continue;
+      const fs=Math.sqrt(q2)-r, idx=ii+N*(jj+N*kk), v=d[idx];
+      let nv;
+      if(add){ if(fs>=v+k) continue; nv=jsmin(v,fs,k); }
+      else { if(-fs<=v-k) continue; nv=jsmax(v,-fs,k); }
+      nv=clamp(nv,-3,3);
+      if(nv!==v){ touch(idx); d[idx]=nv; }
+    }
+  }
+  markDirty(lo,hi);
+}
+function dab(c,r,tool){
+  applyDab(c,r,tool);
+  if(SC.mirror && Math.abs(c[0])>1e-6) applyDab([-c[0],c[1],c[2]],r,tool);
+}
+const pressureOf = e => (e.pointerType==='pen' && SC.pressure) ? clamp(e.pressure||0.5,0.05,1) : 1;
+const brushR = e => SC.rad*(e.pointerType==='pen'&&SC.pressure ? 0.35+0.65*pressureOf(e) : 1);
+function stampAt(x,y,e){
+  const s=SC.stroke; if(!s) return;
+  const pt=pickAt(x,y,s.tool==='add'); if(!pt) return;
+  const r=brushR(e);
+  dab(pt,r,s.tool);
+  SC.hover={p:pt,r};
+  redraw(true);
+}
+function beginStroke(e){
+  SC.stroke={idx:[],old:[],last:[e.clientX,e.clientY],tool:(e.buttons&32)?'sub':SC.tool};
+  stampAt(e.clientX,e.clientY,e);
+}
+function strokeMove(e){
+  const s=SC.stroke; if(!s) return;
+  const r=brushR(e), ppu=cv.clientHeight*0.5*FOCAL/cam.dist;
+  const spacing=Math.max(2,0.22*r*ppu);
+  const dx=e.clientX-s.last[0], dy=e.clientY-s.last[1], len=Math.hypot(dx,dy);
+  if(len<spacing) return;
+  const n=Math.floor(len/spacing);
+  for(let i=1;i<=n;i++) stampAt(s.last[0]+dx/len*spacing*i,s.last[1]+dy/len*spacing*i,e);
+  s.last=[s.last[0]+dx/len*spacing*n,s.last[1]+dy/len*spacing*n];
+}
+function endStroke(){
+  const s=SC.stroke; SC.stroke=null;
+  if(!s) return;
+  s.idx.forEach(i=>SC.flag[i]=0);
+  if(!s.idx.length) return;
+  const idx=Int32Array.from(s.idx), old=Float32Array.from(s.old), nw=new Float32Array(idx.length);
+  for(let i=0;i<idx.length;i++) nw[i]=SC.data[idx[i]];
+  SC.undo.push({idx,old,nw}); if(SC.undo.length>40) SC.undo.shift();
+  SC.redo=[]; updBtns();
+}
+function sUndo(){
+  const e=SC.undo.pop(); if(!e) return;
+  for(let i=0;i<e.idx.length;i++) SC.data[e.idx[i]]=e.old[i];
+  SC.redo.push(e); SC.full=true; updBtns(); redraw(false);
+}
+function sRedo(){
+  const e=SC.redo.pop(); if(!e) return;
+  for(let i=0;i<e.idx.length;i++) SC.data[e.idx[i]]=e.nw[i];
+  SC.undo.push(e); SC.full=true; updBtns(); redraw(false);
+}
+
+/* ---- interazione puntatore ---- */
+const navP = new Map(); let navPd = 0, navC = null, strokePid = null, penDown = false;
+const navDist = () => { const a=[...navP.values()]; return a.length<2?0:Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]); };
+const navCen = () => { const a=[...navP.values()]; return a.length<2?null:[(a[0][0]+a[1][0])/2,(a[0][1]+a[1][1])/2]; };
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId);
+  if(e.pointerType==='pen') penDown=true;
+  if(mode==='sculpt'){
+    if(penDown && e.pointerType==='touch') return;   // rifiuto del palmo
+    const can = e.pointerType==='pen'
+      || (e.pointerType==='mouse' && e.button===0 && !e.shiftKey && !SC.orbitMouse)
+      || (e.pointerType==='touch' && SC.finger && navP.size===0 && strokePid===null);
+    if(can){ strokePid=e.pointerId; beginStroke(e); return; }
+    if(strokePid!==null && e.pointerType==='touch'){ endStroke(); strokePid=null; }
+  }
+  navP.set(e.pointerId,[e.clientX,e.clientY]);
+  navPd=navDist(); navC=navCen();
+});
+cv.addEventListener('pointermove',e=>{
+  if(e.pointerId===strokePid){
+    const evs=(e.getCoalescedEvents&&e.getCoalescedEvents())||[];
+    if(evs.length) evs.forEach(strokeMove); else strokeMove(e);
+    return;
+  }
+  if(mode==='sculpt' && !navP.has(e.pointerId) && e.buttons===0 && (e.pointerType==='pen'||e.pointerType==='mouse')){
+    const pt=SC.has?pickAt(e.clientX,e.clientY,false):null;
+    SC.hover=pt?{p:pt,r:brushR(e)}:null; redraw(true); return;
+  }
+  if(!navP.has(e.pointerId)) return;
+  const o=navP.get(e.pointerId);
+  if(navP.size===1){
+    cam.yaw -= (e.clientX-o[0])*0.008;
+    cam.pitch = clamp(cam.pitch+(e.clientY-o[1])*0.008,-1.5,1.5);
+    navP.set(e.pointerId,[e.clientX,e.clientY]);
+  } else {
+    navP.set(e.pointerId,[e.clientX,e.clientY]);
+    const nd=navDist(), nc=navCen();
+    if(navPd>0&&nd>0) cam.dist=clamp(cam.dist*navPd/nd,1.5,40);
+    if(navC&&nc){
+      cam.yaw -= (nc[0]-navC[0])*0.008;
+      cam.pitch = clamp(cam.pitch+(nc[1]-navC[1])*0.008,-1.5,1.5);
+    }
+    navPd=nd; navC=nc;
+  }
+  redraw(true);
+});
+const endP = e => {
+  if(e.pointerId===strokePid){ endStroke(); strokePid=null; }
+  if(e.pointerType==='pen') penDown=false;
+  navP.delete(e.pointerId); navPd=navDist(); navC=navCen();
+  redraw(false);
+};
+cv.addEventListener('pointerup',endP); cv.addEventListener('pointercancel',endP);
+cv.addEventListener('pointerleave',e=>{ if(e.pointerId!==strokePid && SC.hover){SC.hover=null;redraw(false);} });
+cv.addEventListener('wheel',e=>{e.preventDefault();cam.dist=clamp(cam.dist*Math.exp(e.deltaY*0.001),1.5,40);redraw(true);},{passive:false});
+window.addEventListener('resize',()=>redraw(false));
+$('#bCam').onclick = () => { cam.yaw=.7;cam.pitch=.5;cam.dist=mode==='sculpt'?Math.max(3,SC.h*(SC.N-1)*1.6):7.5;redraw(false); };
+$('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
+$('#bEnd').onclick = () => setRb(S.feats.length-1);
+$('#bOrb').onclick = () => { SC.orbitMouse=!SC.orbitMouse; $('#bOrb').classList.toggle('on',SC.orbitMouse); };
+
+/* ============ Interfaccia: componenti ============ */
+const live = () => { updateUniforms(); redraw(true); };
+const done = () => { commit(); redraw(false); };
+const dec = step => (String(step).split('.')[1]||'').length;
+const fmt = (v,step) => (+v).toFixed(dec(step));
+
+function sl(par,label,val,min,max,step,set,silent){
+  const lv=silent?(()=>{}):live, dn=silent?(()=>{}):done;
+  const w=document.createElement('div'); w.className='fld';
+  const l=document.createElement('label'); l.textContent=label;
+  const r=document.createElement('input'); r.type='range'; r.min=min; r.max=max; r.step=step; r.value=val;
+  const n=document.createElement('input'); n.type='number'; n.step=step; n.value=fmt(val,step);
+  r.addEventListener('input',()=>{const v=+r.value;n.value=fmt(v,step);set(v);lv();});
+  r.addEventListener('change',dn);
+  n.addEventListener('change',()=>{
+    let v=parseFloat(n.value); if(isNaN(v)) v=+r.value;
+    v=clamp(v,min,max); r.value=v; n.value=fmt(v,step); set(v); lv(); dn();
+  });
+  w.append(l,r,n); par.append(w);
+}
+function selBox(par,label,opts,val,set){
+  const w=document.createElement('div'); w.className='fld wide';
+  const l=document.createElement('label'); l.textContent=label;
+  const s=document.createElement('select');
+  opts.forEach((o,i)=>{const op=document.createElement('option');op.value=i;op.textContent=o;s.append(op);});
+  s.value=val;
+  s.addEventListener('change',()=>{set(+s.value);live();done();renderTree();});
+  w.append(l,s); par.append(w);
+}
+function chk(par,label,val,set){
+  const w=document.createElement('label'); w.className='chk';
+  const c=document.createElement('input'); c.type='checkbox'; c.checked=val;
+  c.onchange=()=>set(c.checked);
+  const s=document.createElement('span'); s.textContent=label;
+  w.append(c,s); par.append(w);
+}
+function mkBtn(txt,cls,fn,title){
+  const b=document.createElement('button'); b.className=cls; b.textContent=txt; if(title)b.title=title;
+  b.onclick=fn; return b;
+}
+function note(par,txt,cls){ const n=document.createElement('div'); n.className=cls||'note'; n.textContent=txt; par.append(n); return n; }
+
+/* ============ Interfaccia: modalità solidi ============ */
+function renderTree(){
+  const el=$('#tree'); el.innerHTML='';
+  $('#bEnd').style.display = S.rb < S.feats.length-1 ? '' : 'none';
+  if(!S.feats.length){ el.innerHTML='<div class="empty">Albero vuoto. Aggiungi un solido per iniziare.</div>'; return; }
+  S.feats.forEach((f,i)=>{
+    const kd=KINDS[f.kind];
+    const r=document.createElement('div');
+    r.className='row'+(i===S.sel?' sel':'')+(i>S.rb?' dim':'')+(i===S.rb&&i<S.feats.length-1?' rbline':'')+(!f.on?' off':'');
+    const dot=document.createElement('button'); dot.className='dot'+(i===S.rb?' act':''); dot.title='Torna a questo punto';
+    dot.onclick=e=>{e.stopPropagation();setRb(i);};
+    const ic=document.createElement('span'); ic.className='ic'; ic.textContent=kd.icon;
+    const nm=document.createElement('span'); nm.className='nm'; nm.textContent=f.name;
+    const bd=document.createElement('span'); bd.className='bd';
+    bd.textContent = kd.prim ? OPS.find(o=>o[0]===f.op)[2] : 'ƒ';
+    const eye=document.createElement('button'); eye.className='eye'; eye.textContent=f.on?'◉':'○'; eye.title='Attiva / sospendi';
+    eye.onclick=e=>{e.stopPropagation();f.on=!f.on;commit();updateUniforms();renderTree();redraw(false);};
+    r.append(dot,ic,nm,bd,eye);
+    r.onclick=()=>{S.sel=i;renderTree();renderEditor();};
+    el.append(r);
+  });
+}
+
+function renderEditor(){
+  const el=$('#editor'); el.innerHTML='';
+  const f=S.feats[S.sel];
+  if(!f){ el.innerHTML='<div class="empty">Seleziona una feature dall\'albero per modificarla.</div>'; return; }
+  const kd=KINDS[f.kind], i=S.sel;
+  const hd=document.createElement('div'); hd.className='eh';
+  const nin=document.createElement('input'); nin.type='text'; nin.value=f.name;
+  nin.addEventListener('input',()=>{f.name=nin.value;const n=document.querySelectorAll('#tree .nm')[i];if(n)n.textContent=f.name;});
+  nin.addEventListener('change',commit);
+  hd.append(nin,
+    mkBtn('▲','btn',()=>moveFeature(i,-1),'Sposta su'),
+    mkBtn('▼','btn',()=>moveFeature(i,1),'Sposta giù'),
+    mkBtn('⧉','btn',()=>dupFeature(i),'Duplica'),
+    mkBtn('✕','btn dg',()=>delFeature(i),'Elimina'));
+  el.append(hd);
+  if(i>S.rb) note(el,'Feature sospesa: si trova dopo il punto di ritorno.','warn');
+
+  if(kd.prim) selBox(el,'Operazione',OPS.map(o=>o[1]),OPS.findIndex(o=>o[0]===f.op),v=>{f.op=OPS[v][0];});
+  const addParam = q => {
+    if(q.type==='sel') selBox(el,q.l,q.opts,f.p[q.k],v=>{f.p[q.k]=v;});
+    else sl(el,q.l,f.p[q.k],q.min,q.max,q.step,v=>f.p[q.k]=v);
+  };
+  kd.params.filter(q=>!q.g).forEach(addParam);
+
+  if(kd.prim){
+    note(el,'Raccordi e smussi','grp');
+    selBox(el,'Giunzione',TYPES,f.jt||0,v=>{f.jt=v;});
+    sl(el,'Misura giunzione',f.k,0,1.5,.01,v=>f.k=v);
+    note(el,'La giunzione agisce dove questo solido incontra quelli precedenti.','note');
+    const eg=kd.params.filter(q=>q.g);
+    if(eg.length){
+      note(el,'Spigoli del solido','grp soft');
+      eg.forEach(addParam);
+    }
+    note(el,'Posizione','grp');
+    ['X','Y','Z'].forEach((a,j)=>sl(el,a,f.pos[j],-5,5,.05,v=>f.pos[j]=v));
+    note(el,'Rotazione (gradi)','grp soft');
+    ['X','Y','Z'].forEach((a,j)=>sl(el,a,f.rot[j],-180,180,1,v=>f.rot[j]=v));
+  }
+  if(f.kind==='vase') note(el,'Il vaso è già cavo e aperto in alto. I sei raggi vanno dalla base al bordo e sono uniti da una curva morbida.');
+  if(f.kind==='shell') note(el,'Scava il solido costruito fin qui, con parete verso l\'interno. Per aprire una faccia aggiungi dopo un solido in Sottrazione, oppure un Taglio piano.');
+  if(f.kind==='offset') note(el,'Positivo ingrossa tutto il solido, negativo lo riduce. Gli spigoli esterni diventano arrotondati quando ingrossi.');
+}
+
+function renderSec(){
+  const el=$('#secbox'); el.innerHTML='';
+  chk(el,'Mostra sezione',sec.on,v=>{sec.on=v;updateUniforms();redraw(false);});
+  const w=document.createElement('div'); w.className='fld wide';
+  const l2=document.createElement('label'); l2.textContent='Lato rimosso';
+  const s=document.createElement('select');
+  AXN.forEach((o,i)=>{const op=document.createElement('option');op.value=i;op.textContent=o;s.append(op);});
+  s.value=sec.ax; s.onchange=()=>{sec.ax=+s.value;updateUniforms();redraw(false);};
+  w.append(l2,s); el.append(w);
+  const d=document.createElement('div'); d.className='fld';
+  const lb=document.createElement('label'); lb.textContent='Quota';
+  const r=document.createElement('input'); r.type='range'; r.min=-5;r.max=5;r.step=.05;r.value=sec.q;
+  const n=document.createElement('input'); n.type='number'; n.step=.05; n.value=fmt(sec.q,.05);
+  r.oninput=()=>{sec.q=+r.value;n.value=fmt(sec.q,.05);updateUniforms();redraw(true);};
+  r.onchange=()=>redraw(false);
+  n.onchange=()=>{let v=clamp(parseFloat(n.value)||0,-5,5);r.value=v;sec.q=v;n.value=fmt(v,.05);updateUniforms();redraw(false);};
+  d.append(lb,r,n); el.append(d);
+}
+
+let armed=false, armT=null;
+function renderFreeze(){
+  const el=$('#freezebox'); el.innerHTML='';
+  if(!GL2){ note(el,'La scultura richiede WebGL2, che non è disponibile su questo dispositivo.'); return; }
+  note(el,'Congela l\'intero albero in una forma libera e passa all\'interfaccia con la penna. Le due modalità sono separate: l\'albero resta qui, intatto.','note').style.marginTop='0';
+  const r1=document.createElement('div'); r1.className='two'; r1.style.marginTop='8px';
+  const res=document.createElement('select'); res.className='sel1';
+  [[64,'Veloce (64³)'],[96,'Media (96³)'],[128,'Fine (128³)']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;res.append(o);});
+  res.value=96; r1.append(res); el.append(r1);
+  const r2=document.createElement('div'); r2.className='two'; r2.style.marginTop='8px';
+  const b=mkBtn(SC.has?'Congela di nuovo':'Congela e scolpisci','btn clay',()=>{
+    if(SC.has && !armed){
+      armed=true; b.textContent='Sovrascrivere la scultura? Tocca ancora';
+      clearTimeout(armT); armT=setTimeout(()=>{armed=false;b.textContent='Congela di nuovo';},4000); return;
+    }
+    armed=false; clearTimeout(armT);
+    b.disabled=true; b.textContent='Elaborazione…';
+    setTimeout(()=>{ try{ freeze(+res.value); }catch(e){ toast('Errore: '+e.message); }
+      b.disabled=false; b.textContent=SC.has?'Congela di nuovo':'Congela e scolpisci'; },40);
+  });
+  r2.append(b);
+  if(SC.has) r2.append(mkBtn('Riprendi scultura','btn',()=>enterSculpt()));
+  el.append(r2);
+}
+
+/* ============ Interfaccia: modalità scultura ============ */
+function renderSculptUI(){
+  const el=$('#sctools'); el.innerHTML='';
+  const seg=document.createElement('div'); seg.className='seg';
+  [['add','Aggiungi'],['sub','Togli'],['smooth','Liscia']].forEach(([k,t])=>{
+    const b=document.createElement('button'); b.textContent=t; if(SC.tool===k) b.className='on';
+    b.onclick=()=>{SC.tool=k;renderSculptUI();redraw(false);};
+    seg.append(b);
+  });
+  el.append(seg);
+  sl(el,'Raggio',SC.rad,.05,1.5,.01,v=>SC.rad=v,true);
+  sl(el,'Morbidezza',SC.soft,0,1,.01,v=>SC.soft=v,true);
+  chk(el,'Simmetria sul piano X = 0',SC.mirror,v=>SC.mirror=v);
+  chk(el,'La penna è sensibile alla pressione',SC.pressure,v=>SC.pressure=v);
+  chk(el,'Scolpisci anche con dito e mouse',SC.finger,v=>{SC.finger=v;});
+  note(el,'La penna scolpisce sempre (il lato gomma toglie). Con le dita ruoti e fai zoom: un dito per ruotare, due per zoom e rotazione. Su mouse: tasto destro o Maiusc per ruotare.');
+
+  const inf=$('#scinfo'); inf.innerHTML='';
+  note(inf,SC.has?('Griglia '+SC.N+'³, passo '+(SC.h*1000).toFixed(0)/1000+' unità. Annulla/Ripeti: ultime 40 pennellate.'):'Nessuna scultura.','note').style.marginTop='0';
+  const r=document.createElement('div'); r.className='two'; r.style.marginTop='8px';
+  r.append(mkBtn('← Torna ai solidi','btn',()=>exitSculpt()));
+  inf.append(r);
+  renderFile($('#filebox2'),'sculpt');
+}
+
+function enterSculpt(){
+  if(!SC.has) return;
+  if(!ensureSculptProg()){ toast('Impossibile avviare la scultura su questo dispositivo.'); return; }
+  mode='sculpt'; showErr('');
+  cam.t=SC.c.slice(); cam.dist=Math.max(3,SC.h*(SC.N-1)*1.6);
+  $('#pSolid').style.display='none'; $('#pSculpt').style.display='';
+  $('#tag').textContent='Scultura'; $('#tag').classList.add('sc');
+  $('#bOrb').style.display='';
+  $('#hint').textContent='Penna: scolpisci · Dita: ruota e zoom';
+  $('#panel').scrollTop=0;
+  renderSculptUI(); updBtns(); redraw(false);
+}
+function exitSculpt(){
+  if(SC.stroke){endStroke();}
+  mode='solid';
+  cam.t=[0,0,0]; cam.dist=7.5; SC.hover=null;
+  $('#pSolid').style.display=''; $('#pSculpt').style.display='none';
+  $('#tag').textContent='Solidi'; $('#tag').classList.remove('sc');
+  $('#bOrb').style.display='none';
+  $('#hint').textContent='Trascina: ruota · Pizzica / rotella: zoom';
+  $('#panel').scrollTop=0;
+  ensureProgram(); updateUniforms(); renderUI(); renderFreeze(); updBtns(); redraw(false);
+}
+
+/* ============ SDF in JS (congelamento ed export) ============ */
+function js2d(px,py,hx,hy,e,ty){
+  const ax=Math.abs(px),ay=Math.abs(py);
+  if(ty<.5){const qx=ax-(hx-e),qy=ay-(hy-e);
+    return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-e;}
+  const dx=ax-hx,dy=ay-hy,c=(dx+dy+e)*Math.SQRT1_2;
+  return Math.max(Math.max(dx,dy),c);
+}
+function jsPrim(kind,x,y,z,pk){
+  const A=pk.A,B=pk.B,C=pk.C;
+  switch(kind){
+    case 'box':{
+      if(B[0]+B[1]+B[2]<1e-5){
+        const qx=Math.abs(x)-A[0],qy=Math.abs(y)-A[1],qz=Math.abs(z)-A[2];
+        return Math.hypot(Math.max(qx,0),Math.max(qy,0),Math.max(qz,0))+Math.min(Math.max(qx,qy,qz),0);
+      }
+      return Math.max(js2d(y,z,A[1],A[2],B[0],B[3]),Math.max(js2d(x,z,A[0],A[2],B[1],B[3]),js2d(x,y,A[0],A[1],B[2],B[3])));}
+    case 'sphere':return Math.hypot(x,y,z)-A[0];
+    case 'cylinder':{
+      const rho=Math.hypot(x,z),e=y>=0?A[2]:A[3],dx=rho-A[0],dy=Math.abs(y)-A[1];
+      if(B[3]<.5){const qx=dx+e,qy=dy+e;return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-e;}
+      return Math.max(Math.max(dx,dy),(dx+dy+e)*Math.SQRT1_2);}
+    case 'cone':{const r1=A[0],r2=A[1],h=A[2],qx=Math.hypot(x,z),qy=y;
+      const k1x=r2,k1y=h,k2x=r2-r1,k2y=2*h;
+      const cax=qx-Math.min(qx,qy<0?r1:r2),cay=Math.abs(qy)-h;
+      const t=clamp(((k1x-qx)*k2x+(k1y-qy)*k2y)/(k2x*k2x+k2y*k2y),0,1);
+      const cbx=qx-k1x+k2x*t,cby=qy-k1y+k2y*t;
+      const s=(cbx<0&&cay<0)?-1:1;
+      return s*Math.sqrt(Math.min(cax*cax+cay*cay,cbx*cbx+cby*cby));}
+    case 'torus':{const qx=Math.hypot(x,z)-A[0];return Math.hypot(qx,y)-A[1];}
+    case 'capsule':{const yy=y-clamp(y,-A[1],A[1]);return Math.hypot(x,yy,z)-A[0];}
+    case 'vase':{
+      const H=A[0],t=A[1],bt=A[2],amp=A[3],fq=C[2],rr=[B[0],B[1],B[2],B[3],C[0],C[1]];
+      const rho=Math.hypot(x,z);
+      const u=clamp((y+H*.5)/H,0,1)*5, i=Math.min(Math.floor(u),5), f=u-i;
+      const p0=rr[Math.max(i-1,0)],p1=rr[i],p2=rr[Math.min(i+1,5)],p3=rr[Math.min(i+2,5)];
+      let R=.5*((2*p1)+(-p0+p2)*f+(2*p0-5*p1+4*p2-p3)*f*f+(-p0+3*p1-3*p2+p3)*f*f*f);
+      let dR=.5*((-p0+p2)+2*(2*p0-5*p1+4*p2-p3)*f+3*(-p0+3*p1-3*p2+p3)*f*f)*5/H;
+      R+=amp*Math.sin(fq*y); dR+=amp*fq*Math.cos(fq*y);
+      const k=1/Math.sqrt(1+dR*dR);
+      const dOut=Math.max((rho-R)*k,Math.abs(y)-H*.5);
+      const dIn=Math.max((rho-R)*k+t,(-H*.5+bt)-y);
+      return Math.max(dOut,-dIn);}
+  }
+  return 1e5;
+}
+const jscmin=(a,b,k)=>Math.min(Math.min(a,b),(a-k+b)*Math.SQRT1_2);
+const jscmax=(a,b,k)=>Math.max(Math.max(a,b),(a+k+b)*Math.SQRT1_2);
+function jsMap(packs,x,y,z){
+  let d=1e5;
+  for(const {kind,pk} of packs){
+    if(KINDS[kind].prim){
+      const m=pk.m,vx=x-pk.P[0],vy=y-pk.P[1],vz=z-pk.P[2];
+      const f=jsPrim(kind,m[0][0]*vx+m[0][1]*vy+m[0][2]*vz,m[1][0]*vx+m[1][1]*vy+m[1][2]*vz,m[2][0]*vx+m[2][1]*vy+m[2][2]*vz,pk);
+      const kk=Math.max(pk.K,1e-4), ch=pk.J>.5;
+      if(pk.O===0)d=ch?jscmin(d,f,kk):jsmin(d,f,kk);
+      else if(pk.O===1)d=ch?jscmax(d,-f,kk):jsmax(d,-f,kk);
+      else d=ch?jscmax(d,f,kk):jsmax(d,f,kk);
+    } else if(kind==='shell'){ d=Math.abs(d+pk.K*.5)-pk.K*.5; }
+    else if(kind==='offset'){ d-=pk.K; }
+    else d=Math.max(d,pk.A[0]*x+pk.A[1]*y+pk.A[2]*z-pk.A[3]);
+  }
+  return d;
+}
+const activePacks=()=>{const a=[];S.feats.forEach((f,i)=>{if(f.on&&i<=S.rb)a.push({kind:f.kind,pk:pack(f)});});return a;};
+function solidBounds(F){
+  const L=8,N=48,s=2*L/N,mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9]; let any=false;
+  for(let i=0;i<=N;i++)for(let j=0;j<=N;j++)for(let k=0;k<=N;k++){
+    const x=-L+i*s,y=-L+j*s,z=-L+k*s;
+    if(F(x,y,z)<s*.9){any=true;
+      if(x<mn[0])mn[0]=x;if(y<mn[1])mn[1]=y;if(z<mn[2])mn[2]=z;
+      if(x>mx[0])mx[0]=x;if(y>mx[1])mx[1]=y;if(z>mx[2])mx[2]=z;}
+  }
+  if(!any) return null;
+  for(let a=0;a<3;a++){mn[a]-=s;mx[a]+=s;}
+  return {mn,mx,s};
+}
+
+/* ============ Congelamento ============ */
+function freeze(N){
+  const packs=activePacks();
+  if(!packs.length){ toast('Nessuna geometria da congelare.'); return; }
+  const F=(x,y,z)=>jsMap(packs,x,y,z);
+  const bb=solidBounds(F);
+  if(!bb){ toast('Il modello è vuoto.'); return; }
+  const c=[0,1,2].map(a=>(bb.mn[a]+bb.mx[a])/2);
+  const ext=Math.max(bb.mx[0]-bb.mn[0],bb.mx[1]-bb.mn[1],bb.mx[2]-bb.mn[2]);
+  const H=ext/2+Math.max(.7,ext*.2), h=2*H/(N-1), mn=c.map(v=>v-H);
+  const data=new Float32Array(N*N*N);
+  let q=0;
+  for(let k=0;k<N;k++)for(let j=0;j<N;j++)for(let i=0;i<N;i++)
+    data[q++]=clamp(F(mn[0]+i*h,mn[1]+j*h,mn[2]+k*h),-3,3);
+  setSculpt(N,mn,h,data);
+  enterSculpt();
+  toast('Congelato. Ora scolpisci con la penna.');
+}
+
+/* ============ Mesh e STL (surface nets) ============ */
+function dl(name,blob){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href);},1500);
+}
+function saveMesh(vals,nx,ny,nz,mn,h,mm,name){
+  const id=(i,j,k)=>i+nx*(j+ny*k);
+  const cx=nx-1,cy=ny-1,cz=nz-1;
+  const cell=new Int32Array(cx*cy*cz).fill(-1);
+  const cid=(i,j,k)=>i+cx*(j+cy*k);
+  const CO=[[0,0,0],[1,0,0],[0,1,0],[1,1,0],[0,0,1],[1,0,1],[0,1,1],[1,1,1]];
+  const ED=[[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]];
+  const verts=[]; const v8=new Float64Array(8);
+  for(let k=0;k<cz;k++)for(let j=0;j<cy;j++)for(let i=0;i<cx;i++){
+    let neg=0;
+    for(let c=0;c<8;c++){const v=vals[id(i+CO[c][0],j+CO[c][1],k+CO[c][2])];v8[c]=v;if(v<0)neg++;}
+    if(neg===0||neg===8) continue;
+    let sx=0,sy=0,sz=0,n=0;
+    for(const [a,b] of ED){
+      const va=v8[a],vb=v8[b];
+      if((va<0)!==(vb<0)){
+        const t=va/(va-vb);
+        sx+=CO[a][0]+t*(CO[b][0]-CO[a][0]);
+        sy+=CO[a][1]+t*(CO[b][1]-CO[a][1]);
+        sz+=CO[a][2]+t*(CO[b][2]-CO[a][2]);
+        n++;
+      }
+    }
+    cell[cid(i,j,k)]=verts.length/3;
+    verts.push(mn[0]+(i+sx/n)*h,mn[1]+(j+sy/n)*h,mn[2]+(k+sz/n)*h);
+  }
+  const idx=[];
+  for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+    const v0=vals[id(i,j,k)];
+    for(let a=0;a<3;a++){
+      const e=[i,j,k]; e[a]++;
+      if(e[0]>=nx||e[1]>=ny||e[2]>=nz) continue;
+      const v1=vals[id(e[0],e[1],e[2])];
+      if((v0<0)===(v1<0)) continue;
+      const b=(a+1)%3,c=(a+2)%3, base=[i,j,k];
+      const q=[]; let ok=true;
+      for(const [ob,oc] of [[-1,-1],[0,-1],[0,0],[-1,0]]){
+        const cc=base.slice(); cc[b]+=ob; cc[c]+=oc;
+        if(cc[0]<0||cc[1]<0||cc[2]<0||cc[0]>=cx||cc[1]>=cy||cc[2]>=cz){ok=false;break;}
+        const vi=cell[cid(cc[0],cc[1],cc[2])];
+        if(vi<0){ok=false;break;}
+        q.push(vi);
+      }
+      if(!ok) continue;
+      if(v0>=0) q.reverse();
+      idx.push(q[0],q[1],q[2],q[0],q[2],q[3]);
+    }
+  }
+  const nt=idx.length/3;
+  if(!nt){ toast('Nessuna superficie trovata.'); return; }
+  const V=new Float64Array(verts.length);
+  for(let i=0;i<verts.length;i+=3){ V[i]=verts[i]*mm; V[i+1]=-verts[i+2]*mm; V[i+2]=verts[i+1]*mm; } // Y-su → Z-su
+  const buf=new ArrayBuffer(84+nt*50), dv=new DataView(buf);
+  const hdr='CAD SDF'; for(let i=0;i<hdr.length;i++)dv.setUint8(i,hdr.charCodeAt(i));
+  dv.setUint32(80,nt,true);
+  let o=84;
+  for(let t=0;t<nt;t++){
+    const a=idx[t*3]*3,b=idx[t*3+1]*3,c=idx[t*3+2]*3;
+    const ux=V[b]-V[a],uy=V[b+1]-V[a+1],uz=V[b+2]-V[a+2];
+    const wx=V[c]-V[a],wy=V[c+1]-V[a+1],wz=V[c+2]-V[a+2];
+    let X=uy*wz-uz*wy,Y=uz*wx-ux*wz,Z=ux*wy-uy*wx;
+    const ln=Math.hypot(X,Y,Z)||1; X/=ln;Y/=ln;Z/=ln;
+    dv.setFloat32(o,X,true);dv.setFloat32(o+4,Y,true);dv.setFloat32(o+8,Z,true);
+    [a,b,c].forEach((p,q)=>{dv.setFloat32(o+12+q*12,V[p],true);dv.setFloat32(o+16+q*12,V[p+1],true);dv.setFloat32(o+20+q*12,V[p+2],true);});
+    o+=50;
+  }
+  dl(name,new Blob([buf],{type:'model/stl'}));
+  toast('STL esportato ('+nt+' triangoli).');
+}
+function exportSolidSTL(res,mm){
+  const packs=activePacks();
+  if(!packs.length){ toast('Nessuna geometria da esportare.'); return; }
+  const F=(x,y,z)=>jsMap(packs,x,y,z);
+  const bb=solidBounds(F);
+  if(!bb){ toast('Il modello è vuoto.'); return; }
+  const mn=bb.mn,mx=bb.mx;
+  const size=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]), h=size/res;
+  const nx=Math.ceil((mx[0]-mn[0])/h)+1,ny=Math.ceil((mx[1]-mn[1])/h)+1,nz=Math.ceil((mx[2]-mn[2])/h)+1;
+  const vals=new Float32Array(nx*ny*nz); let q=0;
+  for(let k=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++) vals[q++]=F(mn[0]+i*h,mn[1]+j*h,mn[2]+k*h);
+  saveMesh(vals,nx,ny,nz,mn,h,mm,'cad-sdf.stl');
+}
+function exportSculptSTL(mm){
+  if(!SC.has){ toast('Nessuna scultura.'); return; }
+  saveMesh(SC.data,SC.N,SC.N,SC.N,SC.mn,SC.h,mm,'cad-sdf-scultura.stl');
+}
+
+/* ============ File: salvataggio progetto ============ */
+function toB64(u8){let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s);}
+function fromB64(b){const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u;}
+async function gz(u8){
+  if(typeof CompressionStream==='undefined') return null;
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+}
+async function gunz(u8){
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+}
+async function saveProject(){
+  try{
+    const o={v:2,mode,feats:S.feats,rb:S.rb,sculpt:null};
+    if(SC.has){
+      const q=new Int16Array(SC.data.length);
+      for(let i=0;i<q.length;i++) q[i]=Math.round(clamp(SC.data[i],-3,3)*10000);
+      const raw=new Uint8Array(q.buffer), z=await gz(raw);
+      o.sculpt={N:SC.N,mn:SC.mn,h:SC.h,gz:!!z,data:toB64(z||raw)};
+    }
+    dl('cad-sdf-progetto.json',new Blob([JSON.stringify(o)],{type:'application/json'}));
+    toast('Progetto salvato'+(SC.has?' (solidi e scultura).':'.'));
+  }catch(e){ toast('Errore nel salvataggio: '+e.message); }
+}
+async function loadProject(txt){
+  const o=JSON.parse(txt);
+  if(!Array.isArray(o.feats)) throw new Error('struttura mancante');
+  const feats=o.feats.map(f=>{
+    if(!KINDS[f.kind]) throw new Error('feature sconosciuta: '+f.kind);
+    const n=newFeature(f.kind), p=f.p||{};
+    n.name=String(f.name||n.name); n.op=['add','sub','int'].includes(f.op)?f.op:'add';
+    n.k=+f.k||0; n.jt=f.jt?1:0; n.on=f.on!==false;
+    if(Array.isArray(f.pos)) n.pos=f.pos.slice(0,3).map(Number);
+    if(Array.isArray(f.rot)) n.rot=f.rot.slice(0,3).map(Number);
+    KINDS[f.kind].params.forEach(q=>{ if(typeof p[q.k]==='number') n.p[q.k]=p[q.k]; });
+    if(typeof p.r==='number'){      // compatibilità con la versione precedente
+      if(f.kind==='box') n.p.ex=n.p.ey=n.p.ez=p.r;
+      if(f.kind==='cylinder') n.p.ct=n.p.cb=p.r;
+    }
+    return n;
+  }).slice(0,MAXF);
+  if(mode==='sculpt') exitSculpt();
+  S.feats=feats; S.rb=clamp(typeof o.rb==='number'?o.rb:feats.length-1,-1,feats.length-1); S.sel=feats.length?0:-1;
+  hist=[];hi=-1; commit();
+  if(o.sculpt){
+    let u8=fromB64(o.sculpt.data);
+    if(o.sculpt.gz) u8=await gunz(u8);
+    const q=new Int16Array(u8.buffer,u8.byteOffset,u8.byteLength>>1), N=o.sculpt.N;
+    if(q.length!==N*N*N) throw new Error('scultura incompleta');
+    const data=new Float32Array(q.length);
+    for(let i=0;i<q.length;i++) data[i]=q[i]/10000;
+    setSculpt(N,o.sculpt.mn,o.sculpt.h,data);
+  }
+  afterStructure(); renderFreeze();
+  if(o.mode==='sculpt' && SC.has && GL2) enterSculpt();
+  toast('Progetto aperto.');
+}
+
+function renderFile(el,which){
+  el.innerHTML='';
+  const r1=document.createElement('div'); r1.className='two';
+  const res=document.createElement('select'); res.className='sel1';
+  [[60,'Bozza (60)'],[100,'Media (100)'],[150,'Alta (150)']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;res.append(o);});
+  res.value=100;
+  const mm=document.createElement('input'); mm.type='number'; mm.value=10; mm.min=.1; mm.step=1; mm.className='sel1'; mm.title='mm per unità'; mm.style.maxWidth='90px';
+  const lmm=document.createElement('span'); lmm.textContent='mm / unità'; lmm.style.fontSize='12px'; lmm.style.color='var(--mut)';
+  if(which==='solid') r1.append(res);
+  r1.append(mm,lmm); el.append(r1);
+  const r2=document.createElement('div'); r2.className='two'; r2.style.marginTop='8px';
+  const bs=mkBtn('Esporta STL','btn pri',()=>{
+    bs.textContent='Elaborazione…'; bs.disabled=true;
+    setTimeout(()=>{ try{
+        const m=Math.max(.01,parseFloat(mm.value)||10);
+        if(which==='solid') exportSolidSTL(+res.value,m); else exportSculptSTL(m);
+      }catch(e){ toast('Errore export: '+e.message); }
+      bs.textContent='Esporta STL'; bs.disabled=false; },40);
+  });
+  r2.append(bs); el.append(r2);
+  const r3=document.createElement('div'); r3.className='two'; r3.style.marginTop='8px';
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json'; inp.style.display='none';
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=()=>{ loadProject(rd.result).catch(e=>toast('File non valido: '+e.message)); };
+    rd.readAsText(f); inp.value=''; };
+  r3.append(mkBtn('Salva progetto','btn',saveProject), mkBtn('Apri progetto','btn',()=>inp.click()), inp);
+  el.append(r3);
+  note(el,which==='solid'?'Il progetto salva l\'albero dei solidi e, se c\'è, anche la scultura.':'Il progetto salva la scultura e l\'albero dei solidi di partenza.');
+}
+
+function renderUI(){ renderTree(); renderEditor(); }
+
+/* ============ Avvio ============ */
+function init(){
+  const ap=$('#addp'), am=$('#addm');
+  PRIMS.forEach(k=>ap.append(mkBtn(KINDS[k].icon+' '+KINDS[k].label,'',()=>addFeature(k))));
+  MODS.forEach(k=>am.append(mkBtn(KINDS[k].icon+' '+KINDS[k].label,'mod',()=>addFeature(k))));
+  renderSec(); renderFreeze(); renderFile($('#filebox'),'solid');
+  $('#hint').textContent='Trascina: ruota · Pizzica / rotella: zoom';
+
+  // scena di esempio: blocco con spigoli raccordati, foro con smusso, bugna fusa con raccordo
+  const a=newFeature('box'); a.name='Blocco base'; Object.assign(a.p,{sx:2.6,sy:1.4,sz:2.6,ex:.12,ey:.12,ez:.12});
+  const b=newFeature('cylinder'); b.name='Foro passante'; b.op='sub'; b.k=.08; b.jt=1; Object.assign(b.p,{rad:.6,h:3});
+  const c=newFeature('sphere'); c.name='Bugna'; c.k=.3; c.pos=[1.2,.7,1.2]; c.p.rad=.55;
+  S.feats=[a,b,c]; S.rb=2; S.sel=2;
+  commit(); ensureProgram(); updateUniforms(); renderUI(); updBtns(); redraw(false);
+}
+init();
+</script>
+</body>
+</html>
